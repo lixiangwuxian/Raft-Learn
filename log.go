@@ -12,6 +12,10 @@ type Logger struct {
 
 func NewLogger(filename string) (*Logger, error) {
 	file, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if filename == "" { //if filename is empty, directly print to stdout
+		file = os.Stdout
+		err = nil
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -26,7 +30,7 @@ func (l *Logger) Error(message string, a ...any) {
 }
 
 func (l *Logger) write(level string, message string, a ...any) {
-	timestamp := time.Now().Format("2006-01-02 15:04:05")
+	timestamp := time.Now().Format("2006-01-31 15:04:05")
 	message = fmt.Sprintf(message, a...)
 	fmt.Fprintf(l.file, "[%s] %s: %s\n", timestamp, level, message)
 }

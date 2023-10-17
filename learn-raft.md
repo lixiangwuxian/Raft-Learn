@@ -20,17 +20,22 @@ const (
 )
 ```
 
+每个状态自身都会进行无限循环，根据接收的消息来决定是执行操作还是转换状态。
+不出意外的话，候选人状态应该是持续时间最短的状态，但相应的代码却是最复杂的。
+
 ## 如何解决脑裂问题--过半票决
 
 假设我们现在有2n+1台服务器，但是这2n+1台服务器有些连在了不同的交换机上，内网通过交换机之间的网线传输数据，对外服务则通过路由连接到互联网。
 
 这个时候如果出现了什么问题，比如说交换机之间的网线断了或是被人踢掉了，那么就会出现脑裂问题。
 
-Raft协议并没有通过引入第三方的监控机制来解决问题，而是通过简单的计数方式来决定分裂后的哪部分节点可以继续为用户提供服务。
+Raft协议并没有通过引入第三方的监控机制来解决问题，而是通过选举和简单的计数方式来决定分裂后的哪部分节点可以继续为用户提供服务。
 
 简单来说，2n+1台服务器在发生脑裂后，分裂出的两个集群中，必定有一个集群中机器的数量是大于等于n+1的，而另一个集群中机器的数量一定是小于等于n的。
 
-根据可用性的原则，我们自然会选择机器数量大于等于n+1的集群来继续为用户提供服务，而小于等于n的集群则会停止服务以避免出现数据不一致。
+根据可用性的原则，我们自然会选择机器数量大于等于n+1的集群来继续为用户提供服务，而小于等于n的集群则会停止服务，以避免出现数据不一致。
+
+要实现这样的功能，只要保证
 
 简单的代码实现：
 
@@ -47,11 +52,15 @@ for{
 }
 //for follower
 for{
-    var data,err = get_data_from_leader()//block,return err if time out
+    var data,err = get_data()//block,return err if time out
     if err != nil {
         return
     }
-    //parse data, do something
+    if data.from==leader {
+        //parse data, do something
+    } else {
+        //blabla
+    }
 }
 //既然follower是按照leader的操作来进行的，那么在leader宕机时，follower也会停止服务，并开始选举新的leader
 ```
@@ -74,15 +83,48 @@ for{
 - follower在收到投票请求后，如果请求中的任期号等于自己的任期号，且log记录的长度大于等于请求中的log记录的长度，则会将自己的投票投给请求中的candidate
 - follower在收到投票请求后，如果请求中的任期号小于自己的任期号，则会拒绝投票
 - 每个candidate一定会把票投给自己
-- 如果candidate收到了来自其它candidate的投票，且自己的任期号不大于对方的任期号，则会放弃竞选并投票给对方
+- 如果candidate收到了来自其它candidate的投票请求，且自己的任期号不大于对方的任期号，则会放弃竞选并投票给对方
 - 如果candidate收到了超过半数的投票，则会成为新的leader
 
+```go
+//for candidate
+for{
+    var vote = 1//vote for itself
+    var term = get_term()
+    var log_index = get_log_index()
+    var log_term = get_log_term()
+    var follower = get_follower()
+    var success = get_vote_from_follower(follower,term,log_index,log_term)//return true if vote has been sent to over half of followers, return false if got vote request & its term >= self, others block until timeout the return false
+    if success {
+        vote++
+        if vote > n/2 {
+            become_leader()
+        }
+    }
+}
+//for follower
+for{
+    var data,err = get_data()//block,return err if time out
+    if err != nil {
+        return
+    }
+    if data.from==candidate {
+        if data.term > get_term() {
+            vote(data.id)
+        } else if data.term == get_term() && data.log_index >= get_log_index() {
+            vote(data.id)
+        }
+    } else {
+        //blabla
+    }
+}
+```
 
 ## 一致性的解决方案——log复制与两步提交
 
 raft用来解决一致性问题的方式很简单，就是通过leader来统一管理所有的状态变更，将变更转换为log，然后将log至少同步给过半的follower后，才认为这个变更已被成功可以进行提交。
 
-确认可以进行提交之后，leader会向所有的follower发送commit命令，follower收到commit命令后，会将log应用到自己的储存上。
+确认可以进行提交之后，leader会向所有的follower发送commit命令，follower收到commit命令后，才会将log应用到自己的储存上。
 
 ```go
 //leader
@@ -100,9 +142,16 @@ for{
 }
 ```
 
-当然这只是保证提交可以正常储存到集群中的机器上。如果之前断开的机器恢复了连接，或者是维护人员加入了全新的机器，那么这些机器上的数据就会和集群中的其它机器不一致。这个时候我们就需要日志复制来保证新机器的数据可以被同步。
+当然这只是保证提交可以正常储存到集群中的机器上。如果之前断开的机器恢复了连接，或者是维护人员加入了全新的机器，那么这些机器上的数据就会和集群中的其它机器不一致。这个时候我们就需要复制日志来保证新机器的数据可以被同步。
 
-简单来说，新机器在加入集群的时候会主动联系当前的leader,然后两者开始匹配
+简单来说，新机器在加入集群的时候会主动联系当前的leader,然后两者会开始匹配自身的log，直到发现了两者最晚的相同log。
+
+查找的方式用二分查找即可，因为log是按照时间顺序排列的，所以可以通过二分查找来以$O(log\ n)$的时间复杂度找到最晚的相同log。考虑到我们是做简单实现，直接用枚举来实现也没啥问题。
+
+如何保证集群中log的唯一性呢？我们可以通过让leader在发送log给follower时给log加上自增id来保证log间可以被比较。如果一个follower转变成了leader，那么它的log的id就会从其目前所持有的log的最大id开始自增。
+
+
+![1697513422269](image/learn-raft/1697513422269.png)
 
 参考链接：
 

@@ -6,7 +6,7 @@ import (
 	"net"
 )
 
-var logger, _ = NewLogger("log.txt")
+var logger, _ = NewLogger("")
 
 type State int
 
@@ -21,23 +21,27 @@ type Inform struct { //inform the leader, use singletons
 	state       State
 	knownLeader int
 	knownNodes  []int
+	totalNodes  int
 	// leaderTimeout    int
 	// candidateTimeout int
 }
 
-// type Package struct { //package the message
-// 	term    int
-// 	content interface{}
-// }
+var inform *Inform
+
+var kvStore *KVStore
+
+var logStore *LogStore
 
 func initInform(leaderTimeout int, canTimeout int) *Inform { //init the inform
-	inform := new(Inform)
-	inform.term = 0
-	inform.state = Follower
-	inform.knownLeader = -1
-	inform.knownNodes = make([]int, 0)
-	// inform.leaderTimeout = leaderTimeout
-	// inform.candidateTimeout = canTimeout
+	if inform == nil {
+		inform = new(Inform)
+		inform.term = 0
+		inform.state = Follower
+		inform.knownLeader = -1
+		inform.knownNodes = make([]int, 0)
+		// inform.leaderTimeout = leaderTimeout
+		// inform.candidateTimeout = canTimeout
+	}
 	return inform
 }
 
