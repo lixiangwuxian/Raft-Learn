@@ -27,11 +27,12 @@ type HeartBeat struct {
 	isEcho bool
 }
 
-type Vote struct {
-	from         int
+type RequestVote struct { //request vote, this is the message content
+	// term         int
+	// candidateId  int
 	lastLogIndex int
+	lastLogTerm  int
 }
-
 type VoteTo struct {
 	from  int
 	agree bool
@@ -64,7 +65,7 @@ type LeaderIs struct {
 
 const (
 	heartbeat int = iota
-	vote
+	requestVote
 	voteTo
 	log_data
 	commit
@@ -121,18 +122,22 @@ func (this *Adapter) ListenLoop() {
 				//send heartbeat to leader
 				this.SendHeartbeatTo(packet.term, false)
 			}
-		case vote:
-			var data Vote
+		case requestVote:
+			var data RequestVote
 			json.Unmarshal(packet.data, data)
 			//check if can vote
 			if inform.term < packet.term {
 				//vote
-				this.VoteTo(packet.term, true)
+				this.VoteTo(inform.term, true)
 			} else if inform.term == packet.term && logStore.Len() <= data.lastLogIndex {
-				this.VoteTo(packet.term, true)
+				this.VoteTo(inform.term, true)
+			} else {
+				this.VoteTo(inform.term, false)
 			}
 		case voteTo:
-			continue
+			var data VoteTo
+			json.Unmarshal(packet.data, data)
+
 		case log_data:
 			continue
 		case commit:

@@ -150,7 +150,6 @@ for{
 
 如何保证集群中log的唯一性呢？我们可以通过让leader在发送log给follower时给log加上自增id来保证log间可以被比较。如果一个follower转变成了leader，那么它的log的id就会从其目前所持有的log的最大id开始自增。
 
-
 ![1697513422269](image/learn-raft/1697513422269.png)
 
 参考链接：

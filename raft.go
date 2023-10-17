@@ -45,13 +45,6 @@ func initInform(leaderTimeout int, canTimeout int) *Inform { //init the inform
 	return inform
 }
 
-type RequestVote struct { //request vote, this is the message content
-	term         int
-	candidateId  int
-	lastLogIndex int
-	lastLogTerm  int
-}
-
 func broadcastMe(myIP string, maskIP string, port int) { //broadcast node itself to other nodes by udp broadcast
 	var maskAddr *net.IPAddr
 	maskAddr, _ = net.ResolveIPAddr("ip", maskIP)
