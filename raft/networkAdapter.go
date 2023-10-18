@@ -11,8 +11,9 @@ import (
 )
 
 type Adapter struct {
-	peers      map[int]string
-	listenConn net.Conn
+	peers       map[int]string
+	onlinePeers map[int]string
+	listenConn  net.Conn
 }
 
 type Packet struct {
@@ -182,10 +183,12 @@ func (a *Adapter) ListenLoop() {
 		case im_online:
 			var data IMOnline
 			json.Unmarshal(packet.Data, &data)
-
+			a.onlinePeers[data.From] = data.MyIP
+			a.SendImHere(data.From)
 		case im_here:
 			var data IMHere
 			json.Unmarshal(packet.Data, &data)
+			a.onlinePeers[data.From] = data.MyIP
 		}
 	}
 }
@@ -198,6 +201,14 @@ func parseData(data []byte) Packet {
 
 func (a *Adapter) BroadcastData(data []byte) {
 	fullData, _ := json.Marshal(Packet{cache_data, inform.term, data})
+	for _, peer := range a.onlinePeers {
+		conn, _ := kcp.Dial(peer)
+		conn.Write(fullData)
+	}
+}
+
+func (a *Adapter) FirstBroadcastData(data []byte) {
+	fullData, _ := json.Marshal(Packet{cache_data, inform.term, data})
 	for _, peer := range a.peers {
 		conn, _ := kcp.Dial(peer)
 		conn.Write(fullData)
@@ -205,7 +216,7 @@ func (a *Adapter) BroadcastData(data []byte) {
 }
 
 func (a *Adapter) WriteDataTo(peer int, data []byte) {
-	conn, _ := kcp.Dial(a.peers[peer])
+	conn, _ := kcp.Dial(a.onlinePeers[peer])
 	fullData, _ := json.Marshal(Packet{cache_data, inform.term, data})
 	conn.Write(fullData)
 }
@@ -248,7 +259,7 @@ func (a *Adapter) SendLogTo(peer int, action Action, index int) {
 func (a *Adapter) BroadOnline() {
 	pkg := IMOnline{inform.whoAmI, inform.myIP}
 	data, _ := json.Marshal(pkg)
-	a.BroadcastData(data)
+	a.FirstBroadcastData(data)
 }
 
 func (a *Adapter) SendImHere(peer int) {
