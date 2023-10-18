@@ -13,7 +13,6 @@ import (
 type Adapter struct {
 	peers      map[int]string
 	listenConn net.Conn
-	// maskIP     string
 }
 
 type Packet struct {
