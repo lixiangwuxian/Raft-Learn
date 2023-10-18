@@ -121,9 +121,7 @@ func (a *Adapter) ListenLoop() {
 			if inform.state == Leader {
 				continue
 			} else if inform.state == Follower {
-				inform.state = Candidate
-				inform.term++
-				a.AskForVote(inform.term)
+				transToCandidate()
 			} else if inform.state == Candidate {
 				continue
 			}

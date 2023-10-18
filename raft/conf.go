@@ -12,9 +12,9 @@ var conf *Conf
 func initConf() *Conf {
 	conf = new(Conf)
 	conf.Peers = make(map[int]string)
-	conf.Peers[0] = ""
-	conf.Peers[1] = ""
-	conf.Peers[2] = ""
+	conf.Peers[0] = "10.1.8.1"
+	conf.Peers[1] = "10.1.8.2"
+	conf.Peers[2] = "10.1.8.3"
 	conf.TotalNodes = 3
 	conf.LeaderTimeout = 1000
 	conf.CandidateTimeout = 1000

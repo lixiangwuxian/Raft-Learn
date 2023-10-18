@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"time"
 )
 
@@ -57,34 +58,27 @@ func broadcastMe() {
 }
 
 func transToLeader() {
+	logger.Info("From %d transfrom to leader", inform.state)
 	inform.state = Leader
+	logIndex = logStore.PeekLastIndex() + 1
 	go leaderLoop()
 }
 
 func transToCandidate() {
+	logger.Info("From %d transfrom to candidate", inform.state)
 	inform.state = Candidate
+	voteMe()
+	go candidateTimeout()
 }
 
 func transToFollower() {
+	logger.Info("From %d transfrom to follower", inform.state)
 	inform.state = Follower
 	go followerLoop()
 }
 
-// func startListenFromBroadcast(inform *Inform, port int) {
-// 	addr := fmt.Sprintf(":%d", port)
-// 	conn, _ := net.ListenPacket("udp", addr)
-// 	defer conn.Close()
-// 	for {
-// 		var inform Inform
-// 		data := make([]byte, 1024)
-// 		n, addr, _ := conn.ReadFrom(data)
-// 		json.Unmarshal(data[:n], &inform)
-// 		logger.Info("received from %s", addr.String())
-// 	}
-// }
-
 func main() {
-	myIP := "10.22.34.206:18230"
+	myIP := os.Args[1]
 	logIndex = 0
 	initConf()
 	kvStore = new(KVStore)
