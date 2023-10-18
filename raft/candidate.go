@@ -15,15 +15,15 @@ func candidateTimeout() {
 }
 
 func voteMe() {
-	inform.term++
-	adapter.AskForVote(inform.term)
+	persist_inform.CurrentTerm++
+	adapter.AskForVote(persist_inform.CurrentTerm)
 }
 
-func handleVoteTo(peerData VoteTo) {
+func handleVoteTo(peerData RequestVoteReply) {
 	if peerData.Agree {
 		canState.vote++
 	} else {
-		if peerData.MyTerm > inform.term {
+		if peerData.MyTerm > persist_inform.CurrentTerm {
 			transToFollower()
 		}
 	}

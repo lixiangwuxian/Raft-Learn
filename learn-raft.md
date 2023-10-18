@@ -8,20 +8,9 @@ Raft是一种用于解决分布式一致性/可用性问题的简洁协议(并�
 
 Raft本身的目标就是为了解决集群内有限状态机的同步问题，而Raft本身工作的状态也很容易被抽象成一个有限状态机——单个机器的状态可以是领袖、追随者，或是候选人之间的任意一种，且可能会发生转换。
 
-状态的定义：
-
-```go
-type State int
-
-const (
- Foller State = iota
- Leader
- Candidate
-)
-```
-
 每个状态自身都会进行无限循环，根据接收的消息来决定是执行操作还是转换状态。
-不出意外的话，候选人状态应该是持续时间最短的状态，但相应的代码却是最复杂的。
+
+不出意外的话，候选人状态应该是持续时间最短的状态，但代码实现却是相对最复杂的。
 
 ## 如何解决脑裂问题--过半票决
 
@@ -36,34 +25,6 @@ Raft协议并没有通过引入第三方的监控机制来解决问题，而是�
 根据可用性的原则，我们自然会选择机器数量大于等于n+1的集群来继续为用户提供服务，而小于等于n的集群则会停止服务，以避免出现数据不一致。
 
 要实现这样的功能，只要保证Leader在无法收到过半的follower的确认时，不会提交commit，只是阻塞并发送心跳包即可。
-
-简单的代码实现：
-
-``` go
-//for leader
-for{
-    var avaliable_srv = get_avaliable_srv()
-    if avaliable_srv >= n+1 {
-        // do something
-    } else {
-        send_heart_beat_to_follower()
-        // do nothing, just keep alive & wait the network to recover
-    }
-}
-//for follower
-for{
-    var data,err = get_data()//block,return err if time out
-    if err != nil {
-        return
-    }
-    if data.from==leader {
-        //parse data, do something
-    } else {
-        //blabla
-    }
-}
-//既然follower是按照leader的操作来进行的，那么在leader宕机时，follower也会停止服务，并开始选举新的leader
-```
 
 ## 从故障中恢复——选举新的leader
 
@@ -86,40 +47,6 @@ for{
 - 如果candidate收到了来自其它candidate的投票请求，且自己的任期号不大于对方的任期号，则会放弃竞选并投票给对方
 - 如果candidate收到了超过半数的投票，则会成为新的leader
 
-```go
-//for candidate
-for{
-    var vote = 1//vote for itself
-    var term = get_term()
-    var log_index = get_log_index()
-    var log_term = get_log_term()
-    var follower = get_follower()
-    var success = get_vote_from_follower(follower,term,log_index,log_term)//return true if vote has been sent to over half of followers, return false if got vote request & its term >= self, others block until timeout the return false
-    if success {
-        vote++
-        if vote > n/2 {
-            become_leader()
-        }
-    }
-}
-//for follower
-for{
-    var data,err = get_data()//block,return err if time out
-    if err != nil {
-        return
-    }
-    if data.from==candidate {
-        if data.term > get_term() {
-            vote(data.id)
-        } else if data.term == get_term() && data.log_index >= get_log_index() {
-            vote(data.id)
-        }
-    } else {
-        //blabla
-    }
-}
-```
-
 另外，我们还需要一个超时期限来判定集群中的机器是否发生了故障，而这个期限我们通常可以通过两个时间节点来均衡：广播延迟和平均故障时间。
 
 一般来说，在本地网络的情况下，广播时间只需要不到10ms，而平均故障时间通常是以年/月为单位的。
@@ -131,22 +58,6 @@ for{
 raft用来解决一致性问题的方式很简单，就是通过leader来统一管理所有的状态变更，将变更转换为log，然后将log至少同步给过半的follower后，才认为这个变更已被成功可以进行提交。
 
 确认可以进行提交之后，leader会向所有的follower发送commit命令，follower收到commit命令后，才会将log持久化。确认持久化成功后，leader才会将log添加到自己的log栈中，并且向用户返回提交成功
-
-```go
-//leader
-for{
-    var data = get_data_from_client()
-    var log = create_log(data)
-    var follower = get_follower()
-    var success = send_log_to_followers(follower,log)//return true if log has been sent to over half of followers,others block
-    if success {
-        var commit = send_commit_to_followers(follower)//block until all followers has been committed
-        if commit {
-            add_log_to_stack(log)
-        }
-    }
-}
-```
 
 当然这只是保证提交可以正常储存到集群中的机器上。如果之前断开的机器恢复了连接，或者是维护人员加入了全新的机器，那么这些机器上的数据就会和集群中的其它机器不一致。这个时候我们就需要复制日志来保证新机器的数据可以被同步。
 
@@ -164,7 +75,20 @@ for{
 
 ![1697609175381](image/learn-raft/1697609175381.png)
 
-这个图片基本是我自己在实现raft算法时所设计的程序结构，
+这个图片基本是我自己在实现raft算法时所设计的程序结构。
+
+程序在开始时首先读取配置并初始化状态机中的一些必要变量，之后默认作为Follower加入集群并向配置文件中的每个对端发送握手信息。
+发送握手后，程序就进入了监听端口的无限循环，等待来自其它机器的消息。
+
+以下是论文中关于程序数据结构的描述。实际上raft算法所包含的数据结构都不是很复杂。
+
+![1697628763177](image/learn-raft/1697628763177.png)
+
+![1697628781011](image/learn-raft/1697628781011.png)
+
+![1697628799487](image/learn-raft/1697628799487.png)
+
+![1697628817746](image/learn-raft/1697628817746.png)
 
 参考链接：
 

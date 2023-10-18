@@ -16,33 +16,32 @@ const (
 )
 
 type Inform struct { //inform the leader, use singletons
-	term             int
+	// term             int
 	state            State
-	knownLeader      string
+	knownLeader      int
 	knownNodes       []int
 	totalNodes       int
 	whoAmI           int
 	myIP             string
 	leaderTimeout    int
 	candidateTimeout int
+	commitIndex      int
 }
 
 var inform *Inform
 
-var kvStore *KVStore
+// var kvStore *KVStore
 
 var logStore *LogStore
 
 var logIndex int
 
-var data_to_submit *Action
-
 func initInform(leaderTimeout int, canTimeout int, myIP string, totalNodes int) *Inform { //init the inform
 	if inform == nil {
 		inform = new(Inform)
-		inform.term = 0
+		persist_inform.CurrentTerm = 0
 		inform.state = Follower
-		inform.knownLeader = ""
+		inform.knownLeader = -1
 		inform.knownNodes = make([]int, 0)
 		inform.totalNodes = totalNodes
 		inform.whoAmI = time.Now().Nanosecond()
@@ -81,7 +80,7 @@ func main() {
 	myIP := os.Args[1]
 	logIndex = 0
 	initConf()
-	kvStore = new(KVStore)
+	// kvStore = new(KVStore)
 	logStore = new(LogStore)
 	inform = initInform(1000, 500, myIP, 3)
 	adapter.Init()

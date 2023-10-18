@@ -22,42 +22,56 @@ type Packet struct {
 	Data      json.RawMessage
 }
 
-type HeartBeat struct {
-	From   int
-	MyIP   string
-	MyTerm int
-}
+// type HeartBeat struct {
+// 	From   int
+// 	MyIP   string
+// 	MyTerm int
+// }
 
 type RequestVote struct {
 	From         int
 	LastLogIndex int
 	LastLogTerm  int
 }
-type VoteTo struct {
+type RequestVoteReply struct {
 	From   int
 	Agree  bool
 	MyTerm int
 }
 
-type Cache struct {
-	From       int
-	ActionToDo Action
+type AppendEntries struct {
+	Term         int
+	leaderId     int
+	prevLogIndex int
+	prevLogTerm  int
+	entries      []byte
+	leaderCommit int
 }
 
-type CacheReply struct {
-	From int
-	Okay bool
+type AppendEntriesReply struct {
+	Term    int
+	Success bool
 }
 
-type Commit struct {
-	From  int
-	Stage int
-}
+// type Cache struct {
+// 	From       int
+// 	ActionToDo Action
+// }
 
-type CommitReply struct {
-	From int
-	Okay bool
-}
+// type CacheReply struct {
+// 	From int
+// 	Okay bool
+// }
+
+// type Commit struct {
+// 	From  int
+// 	Stage int
+// }
+
+// type CommitReply struct {
+// 	From int
+// 	Okay bool
+// }
 
 type IMOnline struct {
 	From int
@@ -70,29 +84,20 @@ type IMHere struct {
 }
 
 const (
-	heartbeat int = iota
-	data_from_client
+	// heartbeat int = iota
+	data_from_client = iota
 	request_vote
-	vote_to
-	cache_data
-	cache_reply
-	commit
-	commit_reply
+	// vote_to
+	request_vote_reply
+	// cache_data
+	// cache_reply
+	// commit
+	// commit_reply
+	append_entries
+	append_entries_reply
 	im_online
 	im_here
 )
-
-// type LeaderPacket struct {
-// 	typeOfMsg int
-// 	term      int
-// 	data      string
-// }
-
-// type CandidatePacket struct {
-// 	typeOfMsg int
-// 	term      int
-// 	data      string
-// }
 
 func (a *Adapter) Init() {
 	a.peers = make(map[int]string)
@@ -128,18 +133,18 @@ func (a *Adapter) ListenLoop() {
 		}
 		packet := parseData(buffer)
 		switch packet.TypeOfMsg {
-		case heartbeat:
-			var data HeartBeat
-			json.Unmarshal(packet.Data, &data)
-			if inform.state == Follower {
-				handleHeartbeat(data)
-			}
-			if inform.state == Candidate {
-				transToFollower()
-			}
-			if inform.state == Leader {
-				needKeepLeader(data)
-			}
+		// case heartbeat:
+		// 	var data HeartBeat
+		// 	json.Unmarshal(packet.Data, &data)
+		// 	if inform.state == Follower {
+		// 		handleHeartbeat(data)
+		// 	}
+		// 	if inform.state == Candidate {
+		// 		transToFollower()
+		// 	}
+		// 	if inform.state == Leader {
+		// 		needKeepLeader(data)
+		// 	}
 		case data_from_client:
 			var data string
 			json.Unmarshal(packet.Data, &data)
@@ -150,36 +155,48 @@ func (a *Adapter) ListenLoop() {
 			var data RequestVote
 			json.Unmarshal(packet.Data, &data)
 			voteToCan(data)
-		case vote_to:
-			var data VoteTo
+		case request_vote_reply:
+			var data RequestVoteReply
 			json.Unmarshal(packet.Data, &data)
 			if inform.state == Candidate {
 				handleVoteTo(data)
 			}
-		case cache_data:
-			var data Cache
+		case append_entries:
+			var data AppendEntries
 			json.Unmarshal(packet.Data, &data)
 			if inform.state == Follower {
-				if data.ActionToDo.Index >= logStore.PeekLastIndex() {
-					cacheAction(&data.ActionToDo)
-				}
+				handleAppendEntries(data)
 			}
-		case cache_reply:
-			var data CacheReply
+		case append_entries_reply:
+			var data AppendEntriesReply
 			json.Unmarshal(packet.Data, &data)
 			if inform.state == Leader {
-				if data.Okay {
-					addCacheReply()
-				}
+				handleAppendEntriesReply()
 			}
-		case commit:
-			var data Commit
-			json.Unmarshal(packet.Data, &data)
-			if inform.state == Follower {
-				commitAction()
-			}
-		case commit_reply:
-			continue
+		// case cache_data:
+		// 	var data Cache
+		// 	json.Unmarshal(packet.Data, &data)
+		// 	if inform.state == Follower {
+		// 		if data.ActionToDo.Index >= logStore.PeekLastIndex() {
+		// 			cacheAction(&data.ActionToDo)
+		// 		}
+		// 	}
+		// case cache_reply:
+		// 	var data CacheReply
+		// 	json.Unmarshal(packet.Data, &data)
+		// 	if inform.state == Leader {
+		// 		if data.Okay {
+		// 			addCacheReply()
+		// 		}
+		// 	}
+		// case commit:
+		// 	var data Commit
+		// 	json.Unmarshal(packet.Data, &data)
+		// 	if inform.state == Follower {
+		// 		commitAction()
+		// 	}
+		// case commit_reply:
+		// 	continue
 		case im_online:
 			var data IMOnline
 			json.Unmarshal(packet.Data, &data)
@@ -199,73 +216,85 @@ func parseData(data []byte) Packet {
 	return packet
 }
 
-func (a *Adapter) BroadcastData(data []byte) {
-	fullData, _ := json.Marshal(Packet{cache_data, inform.term, data})
+func (a *Adapter) BroadcastData(data []byte, typeOfMsg int) {
+	fullData, _ := json.Marshal(Packet{typeOfMsg, persist_inform.CurrentTerm, data})
 	for _, peer := range a.onlinePeers {
 		conn, _ := kcp.Dial(peer)
 		conn.Write(fullData)
 	}
 }
 
-func (a *Adapter) FirstBroadcastData(data []byte) {
-	fullData, _ := json.Marshal(Packet{cache_data, inform.term, data})
+func (a *Adapter) FirstBroadcastData(data []byte, typeOfMsg int) {
+	fullData, _ := json.Marshal(Packet{typeOfMsg, persist_inform.CurrentTerm, data})
 	for _, peer := range a.peers {
 		conn, _ := kcp.Dial(peer)
 		conn.Write(fullData)
 	}
 }
 
-func (a *Adapter) WriteDataTo(peer int, data []byte) {
+func (a *Adapter) WriteDataTo(peer int, data []byte, typeOfMsg int) {
 	conn, _ := kcp.Dial(a.onlinePeers[peer])
-	fullData, _ := json.Marshal(Packet{cache_data, inform.term, data})
+	fullData, _ := json.Marshal(Packet{typeOfMsg, persist_inform.CurrentTerm, data})
 	conn.Write(fullData)
 }
 func (a *Adapter) AskForVote(term int) { //use kcp broadcast
 	pkg := RequestVote{inform.whoAmI, logStore.Len(), logStore.PeekLastTerm()}
 	data, _ := json.Marshal(pkg)
-	a.BroadcastData(data)
+	a.BroadcastData(data, request_vote)
 }
 
 func (a *Adapter) VoteTo(peer int, agree bool) {
-	pkg := VoteTo{inform.whoAmI, agree, inform.term}
+	pkg := RequestVoteReply{inform.whoAmI, agree, persist_inform.CurrentTerm}
 	data, _ := json.Marshal(pkg)
-	a.WriteDataTo(peer, data)
+	a.WriteDataTo(peer, data, request_vote_reply)
 }
 
-func (a *Adapter) SendHeartbeat() {
-	pkg := HeartBeat{inform.whoAmI, inform.myIP, inform.term}
+func (a *Adapter) SendAppendEntries(entries []byte) {
+	pkg := AppendEntries{persist_inform.CurrentTerm, inform.whoAmI, logStore.PeekLastIndex(), logStore.PeekLastTerm(), entries, logStore.PeekLastIndex()}
 	data, _ := json.Marshal(pkg)
-	a.BroadcastData(data)
+	a.BroadcastData(data, append_entries)
 }
 
-func (a *Adapter) SendLog(action Action) {
-	pkg := Cache{inform.whoAmI, action}
+func (a *Adapter) SendAppendEntriesReply(peer int, success bool) {
+	pkg := AppendEntriesReply{persist_inform.CurrentTerm, success}
 	data, _ := json.Marshal(pkg)
-	a.BroadcastData(data)
+	a.WriteDataTo(peer, data, append_entries_reply)
 }
 
-func (a *Adapter) SendCommitTo(peer int, logIndex int) {
-	pkg := Commit{inform.whoAmI, logIndex}
-	data, _ := json.Marshal(pkg)
-	a.WriteDataTo(peer, data)
-}
+// func (a *Adapter) SendHeartbeat() {
+// 	pkg := HeartBeat{inform.whoAmI, inform.myIP, persist_inform.CurrentTerm}
+// 	data, _ := json.Marshal(pkg)
+// 	a.BroadcastData(data)
+// }
 
-func (a *Adapter) SendLogTo(peer int, action Action, index int) {
-	pkg := Cache{inform.whoAmI, action}
-	data, _ := json.Marshal(pkg)
-	a.WriteDataTo(peer, data)
-}
+// func (a *Adapter) SendLog(action Action) {
+// 	pkg := Cache{inform.whoAmI, action}
+// 	data, _ := json.Marshal(pkg)
+// 	a.BroadcastData(data)
+// }
+
+// func (a *Adapter) SendCommitTo(peer int, logIndex int) {
+// 	pkg := Commit{inform.whoAmI, logIndex}
+// 	data, _ := json.Marshal(pkg)
+// 	a.WriteDataTo(peer, data)
+// }
+
+// func (a *Adapter) SendLogTo(peer int, action Action, index int) {
+// 	pkg := Cache{inform.whoAmI, action}
+// 	data, _ := json.Marshal(pkg)
+// 	a.WriteDataTo(peer, data)
+// }
 
 func (a *Adapter) BroadOnline() {
 	pkg := IMOnline{inform.whoAmI, inform.myIP}
 	data, _ := json.Marshal(pkg)
-	a.FirstBroadcastData(data)
+	a.FirstBroadcastData(data, im_online)
 }
 
 func (a *Adapter) SendImHere(peer int) {
 	pkg := IMHere{inform.whoAmI, inform.myIP}
 	data, _ := json.Marshal(pkg)
-	a.WriteDataTo(peer, data)
+	a.WriteDataTo(peer, data, im_here)
 }
 
 var adapter Adapter

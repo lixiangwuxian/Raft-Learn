@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"math/rand"
 	"time"
 )
@@ -28,45 +29,51 @@ func followerLoop() {
 	}
 }
 
-func cacheAction(data *Action) bool {
-	if data_to_submit != nil {
-		return false
-	}
-	data_to_submit = data
-	logger.Info("Cached data from leader, waiting for commit")
-	return true
-}
-
-func commitAction() {
-	if data_to_submit.Type == Set {
-		kvStore.Set(data_to_submit.Key, data_to_submit.Value)
-	}
-	if data_to_submit.Type == Delete {
-		kvStore.Delete(data_to_submit.Key)
-	}
-	data_to_submit = nil
-	logger.Info("Data committed")
-	//no need to implement get
-}
-
 func voteToCan(peerData RequestVote) {
 	//send vote to candidate
 	//check if can vote
-	if inform.term == lastVotedTerm {
-		adapter.VoteTo(inform.term, false)
-	} else if inform.term < peerData.LastLogTerm {
+	if persist_inform.CurrentTerm == lastVotedTerm {
+		adapter.VoteTo(persist_inform.CurrentTerm, false)
+	} else if persist_inform.CurrentTerm < peerData.LastLogTerm {
 		//vote
-		adapter.VoteTo(inform.term, true)
-		lastVotedTerm = inform.term
-	} else if inform.term == peerData.LastLogTerm && logStore.Len() <= peerData.LastLogIndex {
-		adapter.VoteTo(inform.term, true)
-		lastVotedTerm = inform.term
+		adapter.VoteTo(persist_inform.CurrentTerm, true)
+		lastVotedTerm = persist_inform.CurrentTerm
+	} else if persist_inform.CurrentTerm == peerData.LastLogTerm && logStore.Len() <= peerData.LastLogIndex {
+		adapter.VoteTo(persist_inform.CurrentTerm, true)
+		lastVotedTerm = persist_inform.CurrentTerm
 	} else {
-		adapter.VoteTo(inform.term, false)
+		adapter.VoteTo(persist_inform.CurrentTerm, false)
 	}
 }
 
-func handleHeartbeat(peerData HeartBeat) {
+func handleAppendEntries(peerData AppendEntries) {
 	gotHeartBeat = true
-	inform.knownLeader = peerData.MyIP
+	inform.knownLeader = peerData.leaderId
+	var leaderEntries = make([]Action, 0)
+	json.Unmarshal(peerData.entries, &leaderEntries)
+	if peerData.Term < persist_inform.CurrentTerm {
+		adapter.SendAppendEntriesReply(inform.whoAmI, false)
+	} else if checkEntries(peerData.prevLogIndex, peerData.prevLogTerm) {
+		adapter.SendAppendEntriesReply(inform.whoAmI, true)
+	} else {
+		adapter.SendAppendEntriesReply(inform.whoAmI, false)
+	}
+	clearDiffEntries(leaderEntries, peerData.prevLogIndex)
+	if peerData.leaderCommit > inform.commitIndex {
+		inform.commitIndex = min(peerData.leaderCommit, logStore.PeekLastIndex())
+	}
+}
+
+func checkEntries(prevLogIndex int, prevLogTerm int) bool {
+	return logStore.Get(prevLogIndex).Term == prevLogTerm
+}
+
+func clearDiffEntries(entries []Action, prevLogIndex int) {
+	for index, entry := range entries {
+		if index+prevLogIndex+1 > logStore.Len() {
+			logStore.Append(entry)
+		} else if logStore.Get(index+prevLogIndex+1).Term != entry.Term {
+			logStore.Set(index, entry)
+		}
+	}
 }

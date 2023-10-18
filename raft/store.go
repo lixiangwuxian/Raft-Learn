@@ -5,6 +5,13 @@ import (
 	"sync"
 )
 
+type PersistInform struct {
+	CurrentTerm int
+	VotedFor    int
+}
+
+var persist_inform PersistInform = PersistInform{0, -1}
+
 type KVStore struct {
 	mu    sync.Mutex
 	store map[string]string
@@ -72,6 +79,10 @@ func (l *LogStore) Append(log Action) {
 
 func (l *LogStore) Get(index int) Action {
 	return l.store[index]
+}
+
+func (l *LogStore) Set(index int, log Action) {
+	l.store[index] = log
 }
 
 func (l *LogStore) Len() int {
