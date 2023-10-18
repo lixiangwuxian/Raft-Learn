@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -8,18 +9,30 @@ import (
 )
 
 func main() {
-	go server()
+	server()
 	time.Sleep(time.Second)
-	go client()
-	time.Sleep(time.Second * 5)
+	// go client()
+	time.Sleep(time.Second)
 }
 
 func server() {
 	listen, _ := kcp.Listen("0.0.0.0:18230")
-	conn, _ := listen.Accept()
-	data := make([]byte, 1024)
-	conn.Read(data)
-	fmt.Println(string(data))
+	for {
+		conn, _ := listen.Accept()
+		data := make([]byte, 1024)
+		conn.Read(data)
+		for i := 0; i < 1024; i++ {
+			// fmt.Println(data[i])
+			if data[i] == 0 {
+				data = data[:i]
+				break
+			}
+		}
+		// fmt.Println(string(data))
+		var str string
+		json.Unmarshal(data, &str)
+		fmt.Println(str)
+	}
 }
 
 func client() {
@@ -27,5 +40,6 @@ func client() {
 	if err != nil {
 		fmt.Print(err)
 	}
-	conn.Write([]byte("Hello World!"))
+	data, _ := json.Marshal("hello,world")
+	conn.Write(data)
 }

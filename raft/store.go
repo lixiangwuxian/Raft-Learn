@@ -1,4 +1,4 @@
-package raft
+package main
 
 import (
 	"errors"
@@ -53,6 +53,7 @@ type Action struct {
 	Key   string
 	Value string
 	Term  int
+	Index int
 }
 
 type LogStore struct {
@@ -85,10 +86,13 @@ func (l *LogStore) PopEnd() {
 }
 func (l *LogStore) PeekEnd() Action {
 	if len(l.store) == 0 {
-		return Action{None, "", "", 0}
+		return Action{}
 	}
 	return l.store[len(l.store)-1]
 }
 func (l *LogStore) PeekLastTerm() int {
 	return l.PeekEnd().Term
+}
+func (l *LogStore) PeekLastIndex() int {
+	return l.PeekEnd().Index
 }

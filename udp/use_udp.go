@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
 	"time"
@@ -8,15 +9,27 @@ import (
 
 func main() {
 	go server()
+	// go server()
 	time.Sleep(time.Second)
 	go client()
-	time.Sleep(time.Second * 3)
+	time.Sleep(time.Second * 10)
 }
 
 func server() {
 	conn, _ := net.ListenPacket("udp4", ":18230")
 	data := make([]byte, 1024)
 	conn.ReadFrom(data)
+	for i := 0; i < 1024; i++ {
+		// fmt.Println(data[i])
+		if data[i] == 0 {
+			data = data[:i]
+			break
+		}
+	}
+	// fmt.Println(string(data))
+	var str string
+	json.Unmarshal(data, &str)
+	fmt.Println(str)
 	fmt.Println(string(data))
 }
 
@@ -27,5 +40,7 @@ func client() {
 	//broadcast address is 10.22.35.255
 	pc, _ := net.ListenPacket("udp4", ":18231")
 	addr, _ := net.ResolveUDPAddr("udp4", "10.22.35.255:18230")
-	pc.WriteTo([]byte("data to transmit"), addr)
+	for {
+		pc.WriteTo([]byte("data to transmit"), addr)
+	}
 }
