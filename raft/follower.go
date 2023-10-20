@@ -51,16 +51,16 @@ func handleAppendEntries(peerData AppendEntries) {
 	inform.knownLeader = peerData.leaderId
 	var leaderEntries = make([]Action, 0)
 	json.Unmarshal(peerData.entries, &leaderEntries)
-	if peerData.Term < persist_inform.CurrentTerm {
-		adapter.SendAppendEntriesReply(inform.whoAmI, false)
-	} else if checkEntries(peerData.prevLogIndex, peerData.prevLogTerm) {
-		adapter.SendAppendEntriesReply(inform.whoAmI, true)
-	} else {
-		adapter.SendAppendEntriesReply(inform.whoAmI, false)
-	}
 	clearDiffEntries(leaderEntries, peerData.prevLogIndex)
 	if peerData.leaderCommit > inform.commitIndex {
-		inform.commitIndex = min(peerData.leaderCommit, logStore.PeekLastIndex())
+		logStore.CommitIndex = min(logStore.CommitIndex, logStore.PeekLastIndex())
+	}
+	if peerData.Term < persist_inform.CurrentTerm {
+		go adapter.SendAppendEntriesReply(inform.whoAmI, false)
+	} else if checkEntries(peerData.prevLogIndex, peerData.prevLogTerm) {
+		go adapter.SendAppendEntriesReply(inform.whoAmI, true)
+	} else {
+		go adapter.SendAppendEntriesReply(inform.whoAmI, false)
 	}
 }
 

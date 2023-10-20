@@ -64,12 +64,14 @@ type Action struct {
 }
 
 type LogStore struct {
-	store []Action
+	store       []Action
+	CommitIndex int
 }
 
 func NewLogStore() *LogStore {
 	return &LogStore{
-		store: make([]Action, 0),
+		store:       make([]Action, 0),
+		CommitIndex: 0,
 	}
 }
 
