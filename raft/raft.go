@@ -2,89 +2,53 @@ package main
 
 import (
 	"os"
-	"time"
+
+	"lxtend.com/m/adapter"
+	"lxtend.com/m/constants"
+	"lxtend.com/m/role"
+	"lxtend.com/m/role/candidate"
+	"lxtend.com/m/role/follower"
+	"lxtend.com/m/role/leader"
+	"lxtend.com/m/store"
+	"lxtend.com/m/structs"
 )
 
 var logger, _ = NewLogger("")
 
-type State int
+var inform *structs.Inform
 
-const (
-	Follower State = iota
-	Leader
-	Candidate
-)
-
-type Inform struct { //inform the leader, use singletons
-	// term             int
-	state            State
-	knownLeader      int
-	knownNodes       []int
-	totalNodes       int
-	whoAmI           int
-	myIP             string
-	leaderTimeout    int
-	candidateTimeout int
-	commitIndex      int
-}
-
-var inform *Inform
-
-// var kvStore *KVStore
-
-var logStore *LogStore
+var logStore *store.InMemoryLogStore
 
 var logIndex int
 
-func initInform(leaderTimeout int, canTimeout int, myIP string, totalNodes int) *Inform { //init the inform
+var roleNow = constants.Follower
+
+var roleMap = map[constants.State]role.Role{}
+
+func initInform(leaderTimeout int, canTimeout int, myIP string, totalNodes int) *structs.Inform { //init the inform
 	if inform == nil {
-		inform = new(Inform)
-		persist_inform.CurrentTerm = 0
-		inform.state = Follower
-		inform.knownLeader = -1
-		inform.knownNodes = make([]int, 0)
-		inform.totalNodes = totalNodes
-		inform.whoAmI = time.Now().Nanosecond()
-		inform.myIP = myIP
-		inform.leaderTimeout = leaderTimeout
-		inform.candidateTimeout = canTimeout
+		inform = new(structs.Inform)
+		inform.CurrentTerm = 0
+		inform.FollowerTimeout = leaderTimeout
+		inform.CandidateTimeout = canTimeout
 	}
 	return inform
 }
 
-func broadcastMe() {
-	adapter.BroadOnline()
-}
-
-func transToLeader() {
-	logger.Info("From %d transfrom to leader", inform.state)
-	inform.state = Leader
-	logIndex = logStore.PeekLastIndex() + 1
-	go leaderLoop()
-}
-
-func transToCandidate() {
-	logger.Info("From %d transfrom to candidate", inform.state)
-	inform.state = Candidate
-	voteMe()
-	go candidateTimeout()
-}
-
-func transToFollower() {
-	logger.Info("From %d transfrom to follower", inform.state)
-	inform.state = Follower
-	go followerLoop()
+func onMsg(packet adapter.Packet) {
+	roleNow = roleMap[roleNow].OnMsg(packet, inform)
 }
 
 func main() {
 	myIP := os.Args[1]
 	logIndex = 0
 	initConf()
-	// kvStore = new(KVStore)
-	logStore = new(LogStore)
+	logStore = new(store.InMemoryLogStore)
 	inform = initInform(1000, 500, myIP, 3)
-	adapter.Init()
-	adapter.peers = getPeers()
-	broadcastMe()
-	go adapter.ListenLoop()
+	netAdapter := adapter.InitAdapter(getPeers())
+	roleMap[constants.Follower] = follower.Follower{}
+	roleMap[constants.Leader] = leader.Leader{}
+	roleMap[constants.Candidate] = candidate.Candidate{}
+	roleNow = follower.OnMsg(adapter.Packet{}, inform)
+	netAdapter.ListenLoop(onMsg)
 }
