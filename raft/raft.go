@@ -36,7 +36,12 @@ func initInform(leaderTimeout int, canTimeout int, myIP string, totalNodes int) 
 }
 
 func onMsg(packet adapter.Packet) {
-	roleNow = roleMap[roleNow].OnMsg(packet, inform)
+	roleMap[roleNow].OnMsg(packet, inform)
+}
+
+func changRole(state constants.State) {
+	roleNow = state
+	roleMap[roleNow].Init(inform, changRole)
 }
 
 func main() {
@@ -49,6 +54,7 @@ func main() {
 	roleMap[constants.Follower] = follower.Follower{}
 	roleMap[constants.Leader] = leader.Leader{}
 	roleMap[constants.Candidate] = candidate.Candidate{}
-	roleNow = follower.OnMsg(adapter.Packet{}, inform)
+	roleNow = constants.Follower
+	roleMap[roleNow].Init(inform, changRole)
 	netAdapter.ListenLoop(onMsg)
 }

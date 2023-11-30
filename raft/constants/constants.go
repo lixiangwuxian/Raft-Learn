@@ -7,3 +7,12 @@ const (
 	Leader
 	Candidate
 )
+
+type PackegeType int
+
+const (
+	AppendEntries PackegeType = iota
+	AppendEntriesReply
+	RequestVote
+	RequestVoteReply
+)

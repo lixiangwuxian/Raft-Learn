@@ -16,8 +16,20 @@ var roleChangeCallback func(constants.State)
 type Follower struct {
 }
 
-func (f Follower) OnMsg(packet adapter.Packet, inform *structs.Inform) constants.State {
-	return constants.Follower
+func (f Follower) OnMsg(packet adapter.Packet, inform *structs.Inform) {
+	if packet.TypeOfMsg == constants.AppendEntries {
+		followerTimeout.Reset()
+		data := adapter.ParseAppendEntries(packet.Data)
+		if data.Term >= inform.CurrentTerm {
+		} else {
+			return
+		}
+		//handle store
+	} else if packet.TypeOfMsg == constants.RequestVote {
+		if packet.Term > inform.CurrentTerm {
+			roleChangeCallback(constants.Follower)
+		}
+	}
 }
 
 func (f Follower) Init(inform *structs.Inform, changeCallback func(constants.State)) {

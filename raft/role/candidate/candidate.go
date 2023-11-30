@@ -10,17 +10,21 @@ import (
 )
 
 var candidateTimeout *timeout.TimerTrigger
-var msgCallback func(adapter.Packet)
+var roleCallback func(constants.State)
 
 type Candidate struct {
 }
 
-func (c Candidate) OnMsg(packet adapter.Packet, inform *structs.Inform) constants.State {
-	return constants.Candidate
+func (c Candidate) OnMsg(packet adapter.Packet, inform *structs.Inform) {
+
 }
 
 func (c Candidate) Init(inform *structs.Inform, changeCallback func(constants.State)) {
 	candidateTimeout = timeout.NewTimerControl(time.Duration(inform.CandidateTimeout) * time.Millisecond)
+	roleCallback = changeCallback
+	candidateTimeout.Start(func() {
+		roleCallback(constants.Follower)
+	})
 }
 
 func (c Candidate) Clear() {

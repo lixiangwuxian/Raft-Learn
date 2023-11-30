@@ -1,14 +1,18 @@
 package adapter
 
-import "encoding/json"
+import (
+	"encoding/json"
+
+	"lxtend.com/m/constants"
+)
 
 type Packet struct {
-	TypeOfMsg int
+	TypeOfMsg constants.PackegeType
 	Term      int
 	Data      json.RawMessage
 }
 
-type AppendEntries struct { //type 1
+type AppendEntries struct {
 	Term         int     `json:"term"`
 	LeaderId     int     `json:"leaderId"`
 	PrevLogIndex int     `json:"prevLogIndex"`
@@ -22,20 +26,20 @@ type Entry struct {
 	Command string `json:"command"`
 }
 
-type AppendEntriesReply struct { //type 2
-	Term    int
-	Success bool
+type AppendEntriesReply struct {
+	Term    int  `json:"term"`
+	Success bool `json:"success"`
 }
 
-type RequestVote struct { //type 3
-	From         int
-	LastLogIndex int
-	LastLogTerm  int
+type RequestVote struct {
+	From         int `json:"from"`
+	LastLogIndex int `json:"lastLogIndex"`
+	LastLogTerm  int `json:"lastLogTerm"`
 }
-type RequestVoteReply struct { //type 4
-	From   int
-	Agree  bool
-	MyTerm int
+type RequestVoteReply struct {
+	From   int  `json:"from"`
+	Agree  bool `json:"agree"`
+	MyTerm int  `json:"myTerm"`
 }
 
 func ParseAppendEntries(data json.RawMessage) AppendEntries {

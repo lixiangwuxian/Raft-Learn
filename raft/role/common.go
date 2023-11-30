@@ -7,7 +7,7 @@ import (
 )
 
 type Role interface {
-	OnMsg(packet adapter.Packet, inform *structs.Inform) constants.State
+	OnMsg(packet adapter.Packet, inform *structs.Inform)
 	Init(inform *structs.Inform, changeCallback func(constants.State))
 	Clear()
 }
