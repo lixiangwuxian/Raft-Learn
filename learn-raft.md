@@ -63,7 +63,7 @@ raft用来解决一致性问题的方式很简单，就是通过leader来统一�
 
 简单来说，新机器在加入集群的时候会主动联系当前的leader，然后两者会开始匹配自身的log，直到发现了两者最晚的相同log。
 
-查找的方式用二分查找即可，因为log是按照时间顺序排列的，所以可以通过二分查找来以$O(log\ n)$的时间复杂度找到最晚的相同log。考虑到我们是做简单实现，直接用枚举来做查找也没啥问题。
+如果某个follower发现自身的log和leader发送的log不匹配，那么这个follower会给leader发送失败回复，leader则会回滚自己发送的最早log，再次向follower发送直至成功匹配。
 
 如何保证集群中log的唯一性呢？我们可以通过让leader在发送log给follower时给log加上自增id来保证log间可以被比较。如果一个follower转变成了leader，那么它的log的id就会从其目前所持有的log的最大id开始自增。
 

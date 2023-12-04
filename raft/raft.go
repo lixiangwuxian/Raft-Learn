@@ -15,7 +15,7 @@ import (
 
 var logger, _ = NewLogger("")
 
-var inform *structs.Inform
+var inform *structs.InformAndHandler
 
 var logStore *store.InMemoryLogStore
 
@@ -25,12 +25,16 @@ var roleNow = constants.Follower
 
 var roleMap = map[constants.State]role.Role{}
 
-func initInform(leaderTimeout int, canTimeout int, myIP string, totalNodes int) *structs.Inform { //init the inform
+func initInform(followerTimeout int, candidateTimeout int, myIP string, totalNodes int) *structs.InformAndHandler { //init the inform
 	if inform == nil {
-		inform = new(structs.Inform)
+		inform = new(structs.InformAndHandler)
 		inform.CurrentTerm = 0
-		inform.FollowerTimeout = leaderTimeout
-		inform.CandidateTimeout = canTimeout
+		inform.FollowerTimeout = followerTimeout
+		inform.CandidateTimeout = candidateTimeout
+		inform.KnownLeader = ""
+		inform.VotedFor = ""
+		inform.Sender = &adapter.KcpSender{}
+		inform.Store = store.InMemoryLogStore{}
 	}
 	return inform
 }
@@ -51,9 +55,9 @@ func main() {
 	logStore = new(store.InMemoryLogStore)
 	inform = initInform(1000, 500, myIP, 3)
 	netAdapter := adapter.InitAdapter(getPeers())
-	roleMap[constants.Follower] = follower.Follower{}
-	roleMap[constants.Leader] = leader.Leader{}
-	roleMap[constants.Candidate] = candidate.Candidate{}
+	roleMap[constants.Follower] = &follower.Follower{}
+	roleMap[constants.Leader] = &leader.Leader{}
+	roleMap[constants.Candidate] = &candidate.Candidate{}
 	roleNow = constants.Follower
 	roleMap[roleNow].Init(inform, changRole)
 	netAdapter.ListenLoop(onMsg)

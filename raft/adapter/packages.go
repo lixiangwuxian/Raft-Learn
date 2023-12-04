@@ -7,18 +7,25 @@ import (
 )
 
 type Packet struct {
-	TypeOfMsg constants.PackegeType
-	Term      int
-	Data      json.RawMessage
+	TypeOfMsg  constants.PackegeType `json:"typeOfMsg"`
+	SourceAddr string
+	Term       int             `json:"term"`
+	Data       json.RawMessage `json:"data"`
 }
 
 type AppendEntries struct {
-	Term         int     `json:"term"`
-	LeaderId     int     `json:"leaderId"`
+	Term int `json:"term"`
+	// LeaderId     int     `json:"leaderId"`//use sourceAddr instead
 	PrevLogIndex int     `json:"prevLogIndex"`
 	PrevLogTerm  int     `json:"prevLogTerm"`
 	Entries      []Entry `json:"entries"`
 	LeaderCommit int     `json:"leaderCommit"`
+}
+
+type AppendEntriesReply struct {
+	Term         int  `json:"term"`
+	Success      bool `json:"success"`
+	CurrentIndex int  `json:"currentIndex"`
 }
 
 type Entry struct {
@@ -26,18 +33,11 @@ type Entry struct {
 	Command string `json:"command"`
 }
 
-type AppendEntriesReply struct {
-	Term    int  `json:"term"`
-	Success bool `json:"success"`
-}
-
 type RequestVote struct {
-	From         int `json:"from"`
 	LastLogIndex int `json:"lastLogIndex"`
 	LastLogTerm  int `json:"lastLogTerm"`
 }
 type RequestVoteReply struct {
-	From   int  `json:"from"`
 	Agree  bool `json:"agree"`
 	MyTerm int  `json:"myTerm"`
 }

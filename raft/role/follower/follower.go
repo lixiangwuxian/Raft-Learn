@@ -16,23 +16,42 @@ var roleChangeCallback func(constants.State)
 type Follower struct {
 }
 
-func (f Follower) OnMsg(packet adapter.Packet, inform *structs.Inform) {
+func (f *Follower) OnMsg(packet adapter.Packet, inform *structs.InformAndHandler) {
 	if packet.TypeOfMsg == constants.AppendEntries {
 		followerTimeout.Reset()
 		data := adapter.ParseAppendEntries(packet.Data)
 		if data.Term >= inform.CurrentTerm {
+			inform.CurrentTerm = data.Term
+			inform.KnownLeader = packet.SourceAddr
 		} else {
 			return
 		}
-		//handle store
+		if inform.Store.LastTerm() == data.PrevLogTerm && inform.Store.LastIndex() == data.PrevLogIndex {
+			inform.Store.Append(data.Entries)
+			inform.Sender.AppendEntriesReply(packet.SourceAddr, adapter.AppendEntriesReply{Term: inform.CurrentTerm, Success: true})
+		} else {
+			inform.Sender.AppendEntriesReply(packet.SourceAddr, adapter.AppendEntriesReply{Term: inform.CurrentTerm, Success: false})
+			return
+		}
+		inform.Sender.AppendEntriesReply(packet.SourceAddr, adapter.AppendEntriesReply{Term: inform.CurrentTerm, Success: true})
+		//丢到储存，还没实现
+	} else if packet.TypeOfMsg == constants.AppendEntriesReply {
+		return
 	} else if packet.TypeOfMsg == constants.RequestVote {
 		if packet.Term > inform.CurrentTerm {
-			roleChangeCallback(constants.Follower)
+			followerTimeout.Reset()
+			inform.Sender.RequestVoteReply(packet.SourceAddr, adapter.RequestVoteReply{Agree: true, MyTerm: inform.CurrentTerm}, inform.CurrentTerm)
+			inform.CurrentTerm = packet.Term
+		} else {
+			followerTimeout.Reset()
+			inform.Sender.RequestVoteReply(packet.SourceAddr, adapter.RequestVoteReply{Agree: false, MyTerm: inform.CurrentTerm}, inform.CurrentTerm)
 		}
+	} else if packet.TypeOfMsg == constants.RequestVoteReply {
+		return
 	}
 }
 
-func (f Follower) Init(inform *structs.Inform, changeCallback func(constants.State)) {
+func (f *Follower) Init(inform *structs.InformAndHandler, changeCallback func(constants.State)) {
 	followerTimeout = timeout.NewTimerControl(time.Duration(inform.FollowerTimeout+rand.Intn(200)) * time.Millisecond)
 	roleChangeCallback = changeCallback
 	followerTimeout.Start(func() {
@@ -40,7 +59,7 @@ func (f Follower) Init(inform *structs.Inform, changeCallback func(constants.Sta
 	})
 }
 
-func (f Follower) Clear() {
+func (f *Follower) Clear() {
 	if followerTimeout != nil {
 		followerTimeout.Stop()
 		followerTimeout = nil

@@ -1,10 +1,27 @@
 package structs
 
-type Inform struct {
+import (
+	"lxtend.com/m/adapter"
+	"lxtend.com/m/store"
+)
+
+type InformAndHandler struct {
 	KnownLeader      string
 	KnownNodes       []string
-	CurrentTerm      int
 	FollowerTimeout  int //多长时间从follower转为leader，使用时需要加一个随机数
 	CandidateTimeout int //多长时间选举超时
-	CommitIndex      int
+	Sender           adapter.Sender
+	Volatile
+	Persistent
+}
+
+type Volatile struct {
+	CommitIndex int
+	lastApplied int
+}
+
+type Persistent struct {
+	CurrentTerm int
+	VotedFor    string
+	Store       store.InMemoryLogStore
 }
