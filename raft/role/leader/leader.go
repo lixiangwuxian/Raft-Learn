@@ -56,6 +56,7 @@ func (l *Leader) OnMsg(packet adapter.Packet, inform *structs.InformAndHandler) 
 func (l *Leader) Init(inform *structs.InformAndHandler, changeCallback func(constants.State)) {
 	roleCallback = changeCallback
 	l.heartbeatTrigger = timeout.NewTimerControl(time.Millisecond * time.Duration(inform.FollowerTimeout) / 4)
+	l.heartbeatTrigger.Start(l.heartBeat)
 	l.nextIndex = make(map[string]int)
 	l.matchIndex = make(map[string]int)
 }

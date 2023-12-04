@@ -28,23 +28,44 @@ func (f *Follower) OnMsg(packet adapter.Packet, inform *structs.InformAndHandler
 		}
 		if inform.Store.LastTerm() == data.PrevLogTerm && inform.Store.LastIndex() == data.PrevLogIndex {
 			inform.Store.Append(data.Entries)
-			inform.Sender.AppendEntriesReply(packet.SourceAddr, adapter.AppendEntriesReply{Term: inform.CurrentTerm, Success: true})
+			inform.Sender.AppendEntriesReply(packet.SourceAddr,
+				adapter.AppendEntriesReply{Term: inform.CurrentTerm,
+					Success:      true,
+					CurrentIndex: inform.Store.LastIndex(),
+				})
 		} else {
-			inform.Sender.AppendEntriesReply(packet.SourceAddr, adapter.AppendEntriesReply{Term: inform.CurrentTerm, Success: false})
+			inform.Sender.AppendEntriesReply(packet.SourceAddr,
+				adapter.AppendEntriesReply{Term: inform.CurrentTerm,
+					Success:      false,
+					CurrentIndex: inform.Store.LastIndex(),
+				})
 			return
 		}
-		inform.Sender.AppendEntriesReply(packet.SourceAddr, adapter.AppendEntriesReply{Term: inform.CurrentTerm, Success: true})
-		//丢到储存，还没实现
+		inform.Sender.AppendEntriesReply(packet.SourceAddr,
+			adapter.AppendEntriesReply{Term: inform.CurrentTerm,
+				Success:      true,
+				CurrentIndex: inform.Store.LastIndex(),
+			})
 	} else if packet.TypeOfMsg == constants.AppendEntriesReply {
 		return
 	} else if packet.TypeOfMsg == constants.RequestVote {
 		if packet.Term > inform.CurrentTerm {
 			followerTimeout.Reset()
-			inform.Sender.RequestVoteReply(packet.SourceAddr, adapter.RequestVoteReply{Agree: true, MyTerm: inform.CurrentTerm}, inform.CurrentTerm)
+			inform.Sender.RequestVoteReply(packet.SourceAddr,
+				adapter.RequestVoteReply{
+					Agree:  true,
+					MyTerm: inform.CurrentTerm,
+				},
+				inform.CurrentTerm)
 			inform.CurrentTerm = packet.Term
 		} else {
 			followerTimeout.Reset()
-			inform.Sender.RequestVoteReply(packet.SourceAddr, adapter.RequestVoteReply{Agree: false, MyTerm: inform.CurrentTerm}, inform.CurrentTerm)
+			inform.Sender.RequestVoteReply(packet.SourceAddr,
+				adapter.RequestVoteReply{
+					Agree:  false,
+					MyTerm: inform.CurrentTerm,
+				},
+				inform.CurrentTerm)
 		}
 	} else if packet.TypeOfMsg == constants.RequestVoteReply {
 		return

@@ -35,9 +35,17 @@ func (c *Candidate) OnMsg(packet adapter.Packet, inform *structs.InformAndHandle
 		}
 	} else if packet.TypeOfMsg == constants.AppendEntries {
 		msgData := adapter.ParseAppendEntries(packet.Data)
-		if msgData.Term > inform.CurrentTerm {
+		if msgData.Term >= inform.CurrentTerm {
+			inform.CurrentTerm = msgData.Term
+			inform.KnownLeader = packet.SourceAddr
 			c.Clear()
 			roleCallback(constants.Follower)
+		} else {
+			inform.Sender.AppendEntriesReply(packet.SourceAddr, adapter.AppendEntriesReply{
+				Term:         inform.CurrentTerm,
+				Success:      false,
+				CurrentIndex: inform.Store.LastIndex(),
+			})
 		}
 	} else if packet.TypeOfMsg == constants.RequestVote {
 		msgData := adapter.ParseAppendEntries(packet.Data)
