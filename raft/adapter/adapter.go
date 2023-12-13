@@ -6,29 +6,23 @@ import (
 	"net"
 
 	kcp "github.com/xtaci/kcp-go"
+	"lxtend.com/m/logger"
+	"lxtend.com/m/packages"
 )
 
 type Adapter struct {
-	peers    map[int]string
+	peers    []string
 	listener net.Listener
 }
 
-const (
-	data_from_client = iota
-	request_vote
-	request_vote_reply
-	append_entries
-	append_entries_reply
-)
-
-func InitAdapter(peers map[int]string) *Adapter {
+func InitAdapter(peers []string, port string) *Adapter {
 	a := new(Adapter)
-	a.peers = make(map[int]string)
-	a.listener, _ = kcp.Listen("0.0.0.0:18230")
+	a.peers = peers
+	a.listener, _ = kcp.Listen("0.0.0.0:" + port)
 	return a
 }
 
-func (a *Adapter) ListenLoop(onMsg func(packet Packet)) {
+func (a *Adapter) ListenLoop(onMsg func(packet packages.Packet)) {
 	for {
 		listenConn, _ := a.listener.Accept()
 		//用来对齐消息
@@ -43,14 +37,15 @@ func (a *Adapter) ListenLoop(onMsg func(packet Packet)) {
 		length := binary.BigEndian.Uint32(lengthByte)
 		data := make([]byte, length)
 		listenConn.Read(data)
-		packet := parseData(data, listenConn.RemoteAddr().String())
+		packet := parseData(data)
+		logger.Glogger.Info("receive msg from %s", packet.SourceAddr)
+		logger.Glogger.Info("msg term is %d, msg type is %d", packet.Term, packet.TypeOfMsg)
 		onMsg(packet)
 	}
 }
 
-func parseData(data []byte, remote string) Packet {
-	var packet Packet
+func parseData(data []byte) packages.Packet {
+	var packet packages.Packet
 	json.Unmarshal(data, &packet)
-	packet.SourceAddr = remote
 	return packet
 }

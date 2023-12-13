@@ -11,6 +11,7 @@ type InformAndHandler struct {
 	FollowerTimeout  int //多长时间从follower转为leader，使用时需要加一个随机数
 	CandidateTimeout int //多长时间选举超时
 	Sender           adapter.Sender
+	MyAddr           string //ip&port
 	Volatile
 	Persistent
 }

@@ -29,8 +29,29 @@ func (tc *TimerTrigger) Start(callback func()) {
 		for {
 			select {
 			case <-tc.timer.C:
-				callback()
+				go callback()
 				return
+			case <-tc.resetChan:
+				if !tc.timer.Stop() {
+					<-tc.timer.C
+				}
+				tc.timer.Reset(tc.duration)
+			case <-tc.stopChan:
+				tc.timer.Stop()
+				return
+			}
+		}
+	}()
+}
+
+// Start 启动定时器监听循环
+func (tc *TimerTrigger) StartIntervalTask(callback func()) {
+	go func() {
+		for {
+			select {
+			case <-tc.timer.C:
+				go callback()
+				tc.timer.Reset(tc.duration)
 			case <-tc.resetChan:
 				if !tc.timer.Stop() {
 					<-tc.timer.C
@@ -51,5 +72,8 @@ func (tc *TimerTrigger) Reset() {
 
 // Stop 停止定时器
 func (tc *TimerTrigger) Stop() {
-	tc.stopChan <- true
+	select {
+	case tc.stopChan <- true:
+	default:
+	}
 }

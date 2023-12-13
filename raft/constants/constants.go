@@ -1,11 +1,11 @@
 package constants
 
-type State int
+type State string
 
 const (
-	Follower State = iota
-	Leader
-	Candidate
+	Follower  State = "follower"
+	Leader    State = "leader"
+	Candidate State = "candidate"
 )
 
 type PackegeType int
@@ -15,4 +15,5 @@ const (
 	AppendEntriesReply
 	RequestVote
 	RequestVoteReply
+	UserRequest
 )

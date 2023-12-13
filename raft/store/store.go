@@ -3,32 +3,42 @@ package store
 import (
 	"fmt"
 
-	"lxtend.com/m/adapter"
+	"lxtend.com/m/packages"
 )
 
 type InMemoryLogStore struct {
-	logs []adapter.Entry
+	logs []packages.Entry
 }
 
-func (s *InMemoryLogStore) Append(entry []adapter.Entry) {
+func (s *InMemoryLogStore) Appends(entry []packages.Entry) {
 	s.logs = append(s.logs, entry...)
 }
 
-func (s *InMemoryLogStore) Get(index int) adapter.Entry {
+func (s *InMemoryLogStore) Append(entry packages.Entry) {
+	s.logs = append(s.logs, entry)
+}
+
+func (s *InMemoryLogStore) Get(index int) packages.Entry {
 	if index < 0 || index >= len(s.logs) {
-		return adapter.Entry{}
+		return packages.Entry{Term: 0, Command: ""}
 	}
 	return s.logs[index]
 }
 
-func (s *InMemoryLogStore) GetSince(index int) []adapter.Entry {
-	if index < 0 || index >= len(s.logs) {
-		return []adapter.Entry{}
+func (s *InMemoryLogStore) GetSince(index int) []packages.Entry {
+	if index < 0 {
+		return s.logs
+	}
+	if index >= len(s.logs) {
+		return []packages.Entry{}
 	}
 	return s.logs[index:]
 }
 
 func (s *InMemoryLogStore) LastIndex() int {
+	// if len(s.logs) == 0 {
+	// 	return 0
+	// }
 	return len(s.logs) - 1
 }
 
@@ -39,7 +49,7 @@ func (s *InMemoryLogStore) LastTerm() int {
 	return s.logs[len(s.logs)-1].Term
 }
 
-func (s *InMemoryLogStore) ReplaceFrom(index int, entries []adapter.Entry) error {
+func (s *InMemoryLogStore) ReplaceFrom(index int, entries []packages.Entry) error {
 	if index < 0 || index > len(s.logs) {
 		return fmt.Errorf("index out of bounds")
 	}

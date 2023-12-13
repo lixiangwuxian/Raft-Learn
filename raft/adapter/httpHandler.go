@@ -1,53 +1,35 @@
 package adapter
 
-// import (
-// 	"encoding/json"
-// 	"fmt"
-// 	"net/http"
-// )
+import (
+	"net/http"
 
-// func getHandler(w http.ResponseWriter, r *http.Request) {
-// 	key := r.URL.Path[len("/kv/"):]
-// 	value, err := Get(key)
-// 	if err != nil {
-// 		http.Error(w, err.Error(), http.StatusInternalServerError)
-// 		return
-// 	}
-// 	w.Write([]byte(value))
-// }
+	"lxtend.com/m/logger"
+	"lxtend.com/m/store"
+)
 
-// func setHandler(w http.ResponseWriter, r *http.Request) {
-// 	var kv struct {
-// 		Key   string `json:"key"`
-// 		Value string `json:"value"`
-// 	}
-// 	err := json.NewDecoder(r.Body).Decode(&kv)
-// 	if err != nil {
-// 		http.Error(w, err.Error(), http.StatusBadRequest)
-// 		return
-// 	}
-// 	err = Set(kv.Key, kv.Value)
-// 	if err != nil {
-// 		http.Error(w, err.Error(), http.StatusInternalServerError)
-// 		return
-// 	}
-// 	w.Write([]byte("Set successful"))
-// }
+var lOnMsg func(command string)
+var storage *store.InMemoryLogStore
 
-// func deleteHandler(w http.ResponseWriter, r *http.Request) {
-// 	key := r.URL.Path[len("/kv/"):]
-// 	err := Delete(key)
-// 	if err != nil {
-// 		http.Error(w, err.Error(), http.StatusInternalServerError)
-// 		return
-// 	}
-// 	w.Write([]byte("Delete successful"))
-// }
+func userHandler(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query()
+	command := query.Get("command")
+	logger.Glogger.Info("user command:%s", command)
+	lOnMsg(command)
+}
 
-// func ListenHttp() {
-// 	http.HandleFunc("/kv/", getHandler)
-// 	http.HandleFunc("/kv", setHandler)
-// 	http.HandleFunc("/kv/", deleteHandler)
-// 	fmt.Println("Server is running at http://localhost:8080")
-// 	http.ListenAndServe(":8080", nil)
-// }
+func getAllCommands(w http.ResponseWriter, r *http.Request) {
+	var commands string
+	for _, command := range storage.GetSince(0) {
+		commands += command.Command + "\n"
+	}
+	w.Write([]byte(commands))
+}
+
+func ListenHttp(port string, onMsg func(command string), logStore *store.InMemoryLogStore) {
+	http.HandleFunc("/", userHandler)
+	http.HandleFunc("/commands", getAllCommands)
+	lOnMsg = onMsg
+	storage = logStore
+	logger.Glogger.Info("Server is running at http://localhost:" + port)
+	go http.ListenAndServe(":"+port, nil)
+}
